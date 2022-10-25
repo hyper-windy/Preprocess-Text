@@ -1,6 +1,7 @@
 from dataclasses import replace
 from fnmatch import translate
 import string
+from tkinter import NW
 import pymongo
 import re
 import sys
@@ -39,7 +40,7 @@ maplist = {}
 with open('mapping_list.txt', 'r', encoding="utf-8") as f:
     for i in f:
         temp = i.rstrip('\n').split(' ')
-        maplist[ord(temp[0])] = temp[1]
+        maplist[temp[0]] = temp[1]
         
 uniChars = "àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệđìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẼẸÊỀẾỂỄỆĐÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴÂĂĐÔƠƯ"
 unsignChars = "aaaaaaaaaaaaaaaaaeeeeeeeeeeediiiiiooooooooooooooooouuuuuuuuuuuyyyyyAAAAAAAAAAAAAAAAAEEEEEEEEEEEDIIIOOOOOOOOOOOOOOOOOOOUUUUUUUUUUUYYYYYAADOOU"
@@ -50,14 +51,37 @@ unsignChars = "aaaaaaaaaaaaaaaaaeeeeeeeeeeediiiiiooooooooooooooooouuuuuuuuuuuyyy
 """
     Begin section:Remove punctualtion
 """
-kytudb = ['\u035f', '̼']
+kytudb = ['\u035f', '̼', '\u0320', '‼', '\u0334', '\u0335', '\u05bc', '\u0336', '\u0337']
+dict_dau_cau = {
+    '\u0311': '\u0302', # ^
+    '\u0304': '\u0302', # ^
+    '\u0340': '\u0300', # dau huyen
+    '\u0341': '\u0301', # dau sac
+    '\u0342': '\u0303', # dau nga
+    '\u030c': '\u0306'  # dau ă
+    
+}
 def remove_punctualtion(text):
-    special_char = kytudb + ['“', '”', '–', '‘', '’', "…","\u0332" ,'\u200b', '\u200c', '\u200d', '\u200e', '\u200f']
+    special_char = kytudb + ['“', '”', '–', '‘', '’', "…","\u0332" ,'\u200b', '\u200c', '\u200d', '\u200e', '\u200f', '\ufe0f']
     punctualtion_list = string.punctuation + "".join(special_char)
     removed_punctuation = "".join([i for i in text if i not in punctualtion_list])
     return removed_punctuation
 """
     End section:Remove punctualtion
+"""
+
+"""
+    Begin section: Convert dau cau
+"""
+def convert_dau_cau_va_mapping(text):
+    for key in  maplist:
+        text = text.replace(key, maplist[key])
+        
+    for key in dict_dau_cau:
+        text = text.replace(key, dict_dau_cau[key])
+    return text
+"""
+    End section: Convert dau cau
 """
 
 # for i in clean_text:
@@ -135,7 +159,7 @@ def find_special_char(text):
 
 
 def replace_special_char(text):
-    mapping_list = maplist.copy()
+    mapping_list = {}
     set_char = find_special_char(text)
     for char in set_char:
         try:
@@ -341,23 +365,32 @@ with open('stop_word.txt', 'r', encoding="utf-8") as f:
 """
     Important
 """
-def tokenize(text):
+def preprocess_text(text):
     text = text.lower()
     text = remove_punctualtion(text)
     text = replace_special_char(text)
+    text = convert_dau_cau_va_mapping(text)
     
-    words = re.split('\s+', text)
+    text = convert_unicode2(text)
+    text = convert_unicode(text)
+    text = convert_unicode3(text)
     
-    for i, word in enumerate(words):
-        words[i] = convert_unicode2(word)
+    set_char = find_special_char(text)
+    text = "".join([i for i in text if i not in set_char])
+    
+    # words = re.split('\s+', text)
+    
+    # for i, word in enumerate(words):
+    #     words[i] = convert_unicode2(word)
         
-    for i, word in enumerate(words):
-        words[i] = convert_unicode(word)
+    # for i, word in enumerate(words):
+    #     words[i] = convert_unicode(word)
     
     # for i, word in enumerate(words):
     #     words[i] = convert_unicode3(word)
 
-    return [word for word in words if word not in stop_word_list]
+    # return [word for word in words if word not in stop_word_list]
+    return re.sub('\s+', ' ', text)
 """
     End section: Tokenize
 """
@@ -416,13 +449,15 @@ def check_special_char(word):
         
     return False
 
-with open('e.txt', 'w', encoding="utf-8") as f:
-    for i in corpus[:100]:
-        f.write(f"{i}\n")
-        x = encode_writting_style(i)
-        f.write(f"{x}\n\n")
-        # f.write(f"{x[1]}\n")
-        # f.write(f"{x[2]}\n\n")
+
+
+# with open('e.txt', 'w', encoding="utf-8") as f:
+#     for i in corpus[:100]:
+#         f.write(f"{i}\n")
+#         x = encode_writting_style(i)
+#         f.write(f"{x}\n\n")
+#         # f.write(f"{x[1]}\n")
+#         # f.write(f"{x[2]}\n\n")
 
 # with open('a.txt', 'w', encoding="utf-8") as f:
 #     for (i, char) in enumerate(find_special_char()):
@@ -455,37 +490,31 @@ with open('e.txt', 'w', encoding="utf-8") as f:
 
 # token_text_list = list(map(tokenization, clean_text2))
 
-# token_text_list = list(map(tokenize, corpus))
+texts_list = list(map(preprocess_text, corpus))
+# token_text_list = list(filter(None, token_text_list))
 
-# with open('d.txt', 'w', encoding="utf-8") as f:
-#     for i in token_text_list:
-#         for j in i:
-#             set_token = find_special_char(j)
+# token_text_list2 = []
+
+# for i in token_text_list:
+#     newarr = []
+#     for token in i:
+#         set_char = find_special_char(token)
+#         newarr.append("".join([k for k in token if k not in set_char]))
+#     token_text_list2.append(newarr)
+    
+
+# test = {}
+
+# for id1,list_words in enumerate(token_text_list):
+#         for id2, word in enumerate(list_words):
+#             set_token = find_special_char(word)
 #             if len(set_token) > 0:
-#                 f.write(f"{j}: ")
-#                 for k in set_token:
-#                     f.write(f"{k}, ")
-#                 f.write('\n')
+#                 test[word] = token_text_list2[id1][id2]
 
-
-
-# original_stdout = sys.stdout
-# with open('test1.txt', 'w', encoding="utf-8") as f:
-#     sys.stdout = f
-#     for i in range(10):
-#         print(f"\nPost {i+1} ---------")
-#         print(corpus[i])
-#         print()
-#         print(token_text_list[i])
-#     sys.stdout = original_stdout
-
-# with open('test1.txt', 'w', encoding="utf-8") as f:
-#     for i in range(10):
-#         f.write(f"Post {i+1} ---------\n")
-#         f.write(corpus[i])
-#         f.write('\n')
-#         f.write(token_text_list[i].toString())
-#         f.write('\n')
+# with open('c.txt', 'w', encoding="utf-8") as f:
+#     for i in range(1000):
+#         f.write(corpus[i]+'\n----------------\n')
+#         f.write(token_text_list[i] + '\n=======================\n\n')
         
 
 # for i in token_text_list[:20]:
